@@ -1,0 +1,56 @@
+# docker version
+version: "3"
+
+services:  
+  mariadb_svr: 
+    image: mariadb:10.11.7
+    command: --max_connections=200 --innodb_buffer_pool_size=24MB
+    environment:
+      # MariaDB specific environment variables
+      MYSQL_DATABASE: db_name
+      MYSQL_USER: user_name
+      MYSQL_PASSWORD: password
+      # MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: true
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root"]
+      interval: 3s  # 매 10초마다 healthcheck 수행
+      timeout: 3s    # 5초 동안 healthcheck에 대한 응답이 없으면 실패로 간주
+      retries: 3     # 최대 3번 재시도 후 실패로 간주
+    networks:
+      network_sso:
+        ipv4_address: "192.168.0.3"
+
+  keycloak_svr:    
+    image: quay.io/keycloak/keycloak:24.0.1   
+    command: start-dev
+    environment:      
+      KC_DB: mariadb
+      KC_DB_URL_HOST: mariadb_svr
+      KC_DB_URL_DATABASE: db_name
+      KC_DB_USERNAME: root
+      KC_DB_PASSWORD: 
+      KC_DB_PORT: "3306"
+      KC_DB_SCHEMA: db_name
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin 
+      PROXY_ADDRESS_FORWARDING: "true"     
+    ports:      
+      - "8080:8080"      
+    depends_on:      
+      mariadb_svr:
+        condition: service_healthy
+    networks:
+      network_sso:
+        ipv4_address: "192.168.0.2"    
+        
+networks:  
+  network_sso:
+    ipam:
+    # IP Address management
+      driver: default
+      # default = bridge
+      config:
+        - subnet: "192.168.0.0/24"    
